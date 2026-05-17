@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "hash-password": "node scripts/hash-password.mjs"
+    "hash-password": "node scripts/hash-password.mjs",
+    "check-password": "node scripts/check-password.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
