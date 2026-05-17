@@ -83,6 +83,35 @@ a {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
+.grid-bg .form-input,
+.grid-bg .form-select,
+.grid-bg .form-textarea,
+.admin-shell .form-input,
+.admin-shell .form-select,
+.admin-shell .form-textarea {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.grid-bg .form-input::placeholder,
+.grid-bg .form-textarea::placeholder,
+.admin-shell .form-input::placeholder,
+.admin-shell .form-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.admin-shell .form-label,
+.admin-shell .admin-stat span,
+.admin-shell .admin-muted {
+  color: #64748b;
+}
+
+.admin-sidebar .admin-muted,
+.admin-sidebar .admin-sidebar-foot p {
+  color: #cbd5e1;
+}
+
 .section-tag {
   color: var(--blue-neon);
   font-family: Inter, "Segoe UI", Arial, sans-serif;
@@ -176,10 +205,24 @@ a {
   color: var(--blue-neon);
 }
 
+.btn-outline:hover {
+  background: rgba(37, 99, 235, 0.14);
+}
+
 .btn-ghost {
   background: transparent;
   border-color: rgba(168, 196, 224, 0.18);
   color: var(--silver);
+}
+
+.admin-shell .btn-ghost {
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.admin-sidebar .btn-ghost {
+  border-color: rgba(203, 213, 225, 0.28);
+  color: #e2e8f0;
 }
 
 .btn-success {
@@ -209,7 +252,14 @@ a {
 .badge-cyan {
   background: rgba(37, 99, 235, 0.12);
   border: 1px solid rgba(37, 99, 235, 0.25);
-  color: #93c5fd;
+  color: #bfdbfe;
+}
+
+.grid-bg .badge-blue,
+.grid-bg .badge-cyan,
+.admin-shell .badge-blue,
+.admin-shell .badge-cyan {
+  color: #1d4ed8;
 }
 
 .badge-success {
@@ -444,6 +494,10 @@ a {
 .admin-brand span,
 .admin-topbar h1 {
   color: var(--blue);
+}
+
+.admin-brand span {
+  color: #93c5fd;
 }
 
 .admin-muted {

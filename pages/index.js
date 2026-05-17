@@ -703,148 +703,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── PANEL ADMIN ── */}
-      {false && sesion && (
-        <section id="admin" className="section" style={{ background:'var(--ink)' }}>
-          <div className="container">
-
-            {/* Admin Header */}
-            <div style={styles.adminHeader}>
-              <div>
-                <div className="section-tag" style={{ marginBottom:4 }}>Panel de Administracion</div>
-                <h2 style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'1.8rem', color:'var(--white)' }}>
-                  CELIDER 17 &nbsp;<span style={{ color:'var(--blue-neon)' }}>Dashboard</span>
-                </h2>
-                <div style={{ fontSize:'13px', color:'var(--silver)', marginTop:4 }}>
-                  Sesión: <strong style={{ color:'var(--blue-glow)' }}>{sesion.nombre}</strong> &nbsp;·&nbsp; {sesion.rol}
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <button className="btn btn-success btn-sm" onClick={exportarXLSX}>Exportar CSV</button>
-                <button className="btn btn-outline btn-sm" onClick={fetchRegistros}>Actualizar</button>
-                <button className="btn btn-danger btn-sm" onClick={cerrarSesion}>Cerrar sesión</button>
-              </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div style={styles.kpiGrid}>
-              <KpiCard label="Total Registros"     value={totalReg}       color="var(--blue-neon)" />
-              <KpiCard label="Promedio Calificacion" value={avgCalif}     color="var(--cyan)" />
-              <KpiCard label="Con condición médica" value={conCondicion}  color="var(--warning)" />
-              <KpiCard label="Distritos Activos"    value={porDistrito.filter(d=>d.n>0).length} color="var(--success)" />
-            </div>
-
-            {/* Distribucion por distrito (bar chart visual) */}
-            <div className="glass" style={{ padding:'28px', marginBottom:24 }}>
-              <div style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'14px', letterSpacing:'0.12em', color:'var(--blue-neon)', marginBottom:20 }}>
-                DISTRIBUCION POR DISTRITO
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {porDistrito.map(({ d, n }) => (
-                  <div key={d} style={{ display:'flex', alignItems:'center', gap:14 }}>
-                    <span style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'13px', color:'var(--silver)', minWidth:50, letterSpacing:'0.05em' }}>{d}</span>
-                    <div style={{ flex:1, height:10, background:'rgba(0,180,255,0.08)', borderRadius:5, overflow:'hidden' }}>
-                      <div style={{
-                        height:'100%',
-                        width: totalReg > 0 ? `${Math.round((n/totalReg)*100)}%` : '0%',
-                        background:'linear-gradient(90deg, var(--blue), var(--blue-neon))',
-                        borderRadius:5,
-                        boxShadow:'0 0 8px rgba(0,180,255,0.5)',
-                        transition:'width 0.8s ease',
-                        minWidth: n > 0 ? '6px' : '0',
-                      }} />
-                    </div>
-                    <span style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'13px', color:'var(--white)', minWidth:24 }}>{n}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Distribucion por rol */}
-            <div className="glass" style={{ padding:'28px', marginBottom:24 }}>
-              <div style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'14px', letterSpacing:'0.12em', color:'var(--blue-neon)', marginBottom:20 }}>
-                DISTRIBUCION POR ROL
-              </div>
-              <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-                {porRol.map(({ r, n }) => (
-                  <div key={r} className="glass-bright" style={{ padding:'16px 24px', minWidth:130, textAlign:'center' }}>
-                    <div style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'2rem', fontWeight:700, color:'var(--blue-glow)' }}>{n}</div>
-                    <div style={{ fontFamily:'Rajdhani,sans-serif', fontSize:'12px', letterSpacing:'0.1em', color:'var(--silver)', textTransform:'uppercase' }}>{r}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Filtros */}
-            <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
-              {['todos', ...DISTRITOS].map(d => (
-                <button key={d}
-                  className={`btn btn-sm ${filtroDistrito === d ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setFiltroDistrito(d)}>
-                  {d === 'todos' ? 'Todos' : `Distrito ${d}`}
-                </button>
-              ))}
-            </div>
-
-            {/* Tabla */}
-            <div className="glass" style={{ overflow:'hidden' }}>
-              <div style={{ overflowX:'auto' }}>
-                {adminLoading ? (
-                  <div style={{ padding:'40px', textAlign:'center', color:'var(--silver)' }}>
-                    <span className="spinner" style={{ width:28, height:28, borderWidth:3 }} />
-                  </div>
-                ) : (
-                  <table style={styles.adminTable}>
-                    <thead>
-                      <tr>
-                        {['#','Distrito','Rol','Nombre','Apellido','Edad','Teléfono','Correo','Centro','Condición médica','Calif.'].map(h => (
-                          <th key={h} style={styles.th}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {registrosFiltrados.length === 0 ? (
-                        <tr>
-                          <td colSpan={11} style={{ ...styles.td, textAlign:'center', color:'var(--silver)', padding:'32px' }}>
-                            {sesion ? 'No hay registros para este filtro.' : 'Inicia sesión para ver los registros.'}
-                          </td>
-                        </tr>
-                      ) : registrosFiltrados.map((r, i) => (
-                        <tr key={r.id} style={styles.tr}>
-                          <td style={styles.td}>{i+1}</td>
-                          <td style={styles.td}><span className="badge badge-blue">{r.distrito}</span></td>
-                          <td style={styles.td}><span className={`badge ${ROL_CLASS[r.rol] || 'badge-blue'}`}>{r.rol}</span></td>
-                          <td style={styles.td}>{r.nombre}</td>
-                          <td style={styles.td}>{r.apellido}</td>
-                          <td style={styles.td}>{r.edad}</td>
-                          <td style={styles.td}>{r.telefono}</td>
-                          <td style={{ ...styles.td, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.email}</td>
-                          <td style={styles.td}>{r.centro}</td>
-                          <td style={styles.td}>
-                            {r.condicion === 'si'
-                              ? <span style={{ color:'var(--warning)', fontSize:'12px' }}>Si: {(r.condicion_detalle||'').substring(0,30)}</span>
-                              : <span style={{ color:'var(--success)', fontSize:'12px' }}>No</span>}
-                          </td>
-                          <td style={styles.td}>
-                            <span style={{ color:'var(--blue-glow)', fontFamily:'Rajdhani,sans-serif' }}>
-                              {'★'.repeat(r.calificacion||0)}{'☆'.repeat(5-(r.calificacion||0))}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              <div style={{ padding:'14px 20px', borderTop:'1px solid var(--border)', fontSize:'12px', color:'var(--silver)', fontFamily:'Rajdhani,sans-serif', letterSpacing:'0.08em' }}>
-                {registrosFiltrados.length} REGISTRO(S) — Filtro: {filtroDistrito.toUpperCase()}
-              </div>
-            </div>
-
-          </div>
-        </section>
-      )}
-
       {/* ── FOOTER ── */}
       <footer style={styles.footer}>
         <div style={styles.footerLogo}>CELIDER <span style={{ color:'var(--blue-neon)' }}>17</span></div>
@@ -964,8 +822,8 @@ const styles = {
   objetivosGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:20 },
   objetivoCard: { padding:'28px', position:'relative', overflow:'hidden', transition:'all .25s', cursor:'default' },
   objetivoNum: { fontFamily:'Inter, sans-serif', fontSize:'2.3rem', fontWeight:800, color:'var(--blue-dim)', marginBottom:10, lineHeight:1 },
-  objetivoTitle: { fontFamily:'Inter, sans-serif', fontSize:'1.05rem', fontWeight:800, color:'var(--white)', marginBottom:10, letterSpacing:0 },
-  objetivoDesc: { fontSize:'0.88rem', color:'var(--silver)', lineHeight:1.7, fontWeight:300 },
+  objetivoTitle: { fontFamily:'Inter, sans-serif', fontSize:'1.05rem', fontWeight:800, color:'#0f172a', marginBottom:10, letterSpacing:0 },
+  objetivoDesc: { fontSize:'0.88rem', color:'#475569', lineHeight:1.7, fontWeight:400 },
   objetivoBar: { position:'absolute', top:0, left:0, right:0, height:3, background:'var(--blue)', boxShadow:'none' },
 
   planchaGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:20 },
@@ -991,13 +849,13 @@ const styles = {
   biblioGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginTop:20 },
   biblioDoc: { padding:'18px 14px', textAlign:'center', transition:'all .2s' },
   biblioDocIcon: { fontFamily:'Inter, sans-serif', fontSize:'13px', fontWeight:800, color:'var(--danger)', letterSpacing:'0.04em', marginBottom:10, padding:'6px 10px', border:'1px solid rgba(220,38,38,0.25)', borderRadius:4, display:'inline-block' },
-  biblioDocName: { fontSize:'12px', color:'var(--white)', wordBreak:'break-word', fontWeight:500, marginBottom:4 },
+  biblioDocName: { fontSize:'12px', color:'#f8fafc', wordBreak:'break-word', fontWeight:700, marginBottom:4 },
   biblioDocSize: { fontSize:'11px', color:'var(--silver)' },
   comitesGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:14 },
   comiteCard: { padding:'18px 20px', transition:'all .2s' },
   comiteCardHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, gap:8 },
-  comiteNombre: { fontFamily:'Inter, sans-serif', fontSize:'0.95rem', fontWeight:800, color:'var(--white)' },
-  comiteDesc: { fontSize:'12px', color:'var(--silver)', fontWeight:300, lineHeight:1.6 },
+  comiteNombre: { fontFamily:'Inter, sans-serif', fontSize:'0.95rem', fontWeight:800, color:'#f8fafc' },
+  comiteDesc: { fontSize:'12px', color:'#cbd5e1', fontWeight:400, lineHeight:1.6 },
 
   adminHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28, flexWrap:'wrap', gap:16 },
   kpiGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:16, marginBottom:24 },
