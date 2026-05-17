@@ -184,12 +184,8 @@ export default function Home() {
       setReg(key === 'cedula' ? 'cedula_file' : 'foto_file', '')
       return
     }
-    if (file.type !== 'application/pdf') {
-      setRegAlert({ type:'error', msg:'Solo se permiten archivos PDF.' })
-      return
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setRegAlert({ type:'error', msg:'El PDF no puede pesar más de 8 MB.' })
+    if (file.size > 25 * 1024 * 1024) {
+      setRegAlert({ type:'error', msg:'El PDF no puede pesar más de 25 MB.' })
       return
     }
     setRegAlert({ type:'', msg:'' })
@@ -475,11 +471,10 @@ export default function Home() {
             onClick={() => document.getElementById('biblioInput').click()}>
             <div style={{ fontSize:32, color:'var(--blue-neon)' }}>+</div>
             <p>Subir documento al repositorio — Solo administradores — PDF únicamente</p>
-            <input type="file" id="biblioInput" accept=".pdf" style={{ display:'none' }}
+            <input type="file" id="biblioInput" style={{ display:'none' }}
               onChange={e => {
                 const f = e.target.files[0]
                 if (!f) return
-                if (f.type !== 'application/pdf') { alert('Solo PDF.'); return }
                 setBiblioFiles(prev => [...prev, { nombre: f.name, size: (f.size/1024).toFixed(0)+'KB' }])
                 e.target.value = ''
               }} />
@@ -666,15 +661,15 @@ export default function Home() {
             <SectionHeader title="Documentos Requeridos" />
             <div className="form-group">
               <label className="form-label">Cédula o acta de nacimiento (PDF) *</label>
-              <input type="file" className="form-input" accept="application/pdf,.pdf"
+              <input type="file" className="form-input"
                 onChange={e => setPdfFile('cedula', e.target.files?.[0])} />
-              <p className="form-hint">{regState.cedula_file || 'Selecciona el PDF. Se subirá automáticamente al enviar el registro.'}</p>
+              <p className="form-hint">{regState.cedula_file || 'Selecciona el PDF. Puede tener cualquier nombre y se subirá al enviar el registro.'}</p>
             </div>
             <div className="form-group">
               <label className="form-label">Fotografía 2x2 (PDF) *</label>
-              <input type="file" className="form-input" accept="application/pdf,.pdf"
+              <input type="file" className="form-input"
                 onChange={e => setPdfFile('foto', e.target.files?.[0])} />
-              <p className="form-hint">{regState.foto_file || 'Selecciona el PDF. Se subirá automáticamente al enviar el registro.'}</p>
+              <p className="form-hint">{regState.foto_file || 'Selecciona el PDF. Puede tener cualquier nombre y se subirá al enviar el registro.'}</p>
             </div>
 
             {/* Calificación */}

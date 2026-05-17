@@ -21,6 +21,7 @@ export default function AdminRegistros() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState(null);
   const [form, setForm] = useState({
     titulo: "",
     descripcion: "",
@@ -67,6 +68,10 @@ export default function AdminRegistros() {
     event.preventDefault();
     if (!form.titulo || !form.file) {
       setError("Ingresa un título y selecciona un PDF.");
+      return;
+    }
+    if (form.file.size > 25 * 1024 * 1024) {
+      setError("El PDF no puede pesar mas de 25 MB.");
       return;
     }
 
@@ -210,8 +215,8 @@ export default function AdminRegistros() {
                         <td>{registro.centro}</td>
                         <td>
                           <div className="admin-doc-actions">
-                            {registro.cedula_url ? <a className="btn btn-sm btn-outline" href={registro.cedula_url} target="_blank" rel="noreferrer">Cédula</a> : <span className="admin-muted">Sin cédula</span>}
-                            {registro.foto_url ? <a className="btn btn-sm btn-outline" href={registro.foto_url} target="_blank" rel="noreferrer">Foto 2x2</a> : <span className="admin-muted">Sin foto</span>}
+                            {registro.cedula_url ? <button className="btn btn-sm btn-outline" type="button" onClick={() => setPreview({ title: `Cedula - ${registro.nombre} ${registro.apellido}`, url: registro.cedula_url, path: registro.cedula_file })}>Cedula</button> : <span className="admin-muted">Sin cedula</span>}
+                            {registro.foto_url ? <button className="btn btn-sm btn-outline" type="button" onClick={() => setPreview({ title: `Foto 2x2 - ${registro.nombre} ${registro.apellido}`, url: registro.foto_url, path: registro.foto_file })}>Foto 2x2</button> : <span className="admin-muted">Sin foto</span>}
                           </div>
                         </td>
                         <td>{registro.condicion === "si" ? registro.condicion_detalle || "Si" : "No"}</td>
@@ -233,7 +238,8 @@ export default function AdminRegistros() {
                 <label className="form-label">Descripción</label>
                 <textarea className="form-textarea" value={form.descripcion} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} />
                 <label className="form-label">Archivo PDF</label>
-                <input className="form-input" type="file" accept="application/pdf,.pdf" onChange={(e) => setForm((s) => ({ ...s, file: e.target.files?.[0] || null }))} />
+                <input className="form-input" type="file" onChange={(e) => setForm((s) => ({ ...s, file: e.target.files?.[0] || null }))} />
+                <p className="admin-muted">{form.file ? form.file.name : "Puedes subir un PDF con cualquier nombre."}</p>
                 <label className="admin-check">
                   <input type="checkbox" checked={form.visible} onChange={(e) => setForm((s) => ({ ...s, visible: e.target.checked }))} />
                   Visible en el home
@@ -250,7 +256,7 @@ export default function AdminRegistros() {
                       <p>{doc.descripcion || doc.file_name}</p>
                     </div>
                     <div className="admin-doc-actions">
-                      {doc.url ? <a className="btn btn-sm btn-outline" href={doc.url} target="_blank" rel="noreferrer">Ver PDF</a> : null}
+                      {doc.url ? <button className="btn btn-sm btn-outline" type="button" onClick={() => setPreview({ title: doc.titulo || doc.file_name || "PDF", url: doc.url, path: doc.file_path })}>Ver PDF</button> : null}
                       <button className={`btn btn-sm ${doc.visible ? "btn-success" : "btn-ghost"}`} onClick={() => toggleVisible(doc)}>
                         {doc.visible ? "Visible" : "Oculto"}
                       </button>
@@ -263,6 +269,23 @@ export default function AdminRegistros() {
           )}
         </section>
       </main>
+      {preview ? (
+        <div className="pdf-preview-overlay" onClick={(event) => event.target === event.currentTarget && setPreview(null)}>
+          <div className="pdf-preview-panel">
+            <header className="pdf-preview-header">
+              <div>
+                <strong>{preview.title}</strong>
+                <span>{preview.path}</span>
+              </div>
+              <div className="admin-doc-actions">
+                <a className="btn btn-sm btn-outline" href={preview.url} target="_blank" rel="noreferrer">Abrir aparte</a>
+                <button className="btn btn-sm btn-ghost" type="button" onClick={() => setPreview(null)}>Cerrar</button>
+              </div>
+            </header>
+            <iframe className="pdf-preview-frame" src={preview.url} title={preview.title} />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

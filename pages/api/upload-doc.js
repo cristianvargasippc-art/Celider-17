@@ -5,7 +5,7 @@ import { uploadPdf } from "../../lib/pdfStorage";
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "12mb"
+      sizeLimit: "35mb"
     }
   }
 };
