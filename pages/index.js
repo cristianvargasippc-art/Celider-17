@@ -661,7 +661,7 @@ export default function Home() {
             <SectionHeader title="Documentos Requeridos" />
             <div className="form-group">
               <label className="form-label">Cédula o acta de nacimiento*</label>
-              <input type="number" className="form-input" placeholder="Ej: 402-0991385-1" value={regState.Cédula} onChange={e => setReg('Cédula', e.target.value)} /> maxLength={11}
+              <input type="Cedu" className="form-input" placeholder="Ej: 402-0991385-1" value={regState.Cédula} onChange={e => setReg('Cédula', e.target.value)} maxLength={11}/>
             </div>
             <div className="form-group">
               <label className="form-label">Fotografía 2x2 (PDF) *</label>
