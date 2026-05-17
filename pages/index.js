@@ -662,13 +662,7 @@ export default function Home() {
             <div className="form-group">
               <label className="form-label">Cédula o acta de nacimiento*</label>
               <input type="Cedu" className="form-input" placeholder="Ej: 402-0991385-1" value={regState.Cédula} onChange={e => setReg('Cédula', e.target.value)} maxLength={11}/>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Fotografía 2x2 (PDF) *</label>
-              <input type="file" className="form-input"
-                onChange={e => setPdfFile('foto', e.target.files?.[0])} />
-              <p className="form-hint">{regState.foto_file || 'Selecciona el PDF. Puede tener cualquier nombre y se subirá al enviar el registro.'}</p>
-            </div>
+            </div> 
 
             {/* Calificación */}
             <SectionHeader title="Evaluación del proceso" />
