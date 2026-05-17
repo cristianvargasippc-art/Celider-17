@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 import { getSessionFromRequest } from "../../../lib/session";
+import { signedUrl } from "../../../lib/pdfStorage";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -24,5 +25,13 @@ export default async function handler(req, res) {
 
   if (error) return res.status(500).json({ error: "No se pudieron cargar los registros" });
 
-  return res.status(200).json({ data, registros: data });
+  const registros = await Promise.all(
+    (data || []).map(async (registro) => ({
+      ...registro,
+      cedula_url: await signedUrl(registro.cedula_file),
+      foto_url: await signedUrl(registro.foto_file)
+    }))
+  );
+
+  return res.status(200).json({ data: registros, registros });
 }

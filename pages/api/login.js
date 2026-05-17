@@ -33,7 +33,7 @@ export default function handler(req, res) {
 
   if (!email || !pass) return res.status(400).json({ error: 'Campos incompletos.' })
   if (!validateEmail(email)) return res.status(400).json({ error: 'Correo invalido.' })
-  if (pass.length > 128) return res.status(400).json({ error: 'Contrasena invalida.' })
+  if (pass.length > 128) return res.status(400).json({ error: 'Contraseña inválida.' })
 
   const user = ADMINS.find((item) => item.email?.toLowerCase() === email)
 

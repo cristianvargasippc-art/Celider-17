@@ -1,55 +1,277 @@
-import { useEffect, useState } from 'react'
+import Head from "next/head";
+import { useEffect, useMemo, useState } from "react";
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+const DISTRITOS = ["todos", "17-01", "17-02", "17-03", "17-04", "17-05"];
 
 export default function AdminRegistros() {
-  const [registros, setRegistros] = useState([])
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState(null);
+  const [tab, setTab] = useState("registros");
+  const [registros, setRegistros] = useState([]);
+  const [biblioteca, setBiblioteca] = useState([]);
+  const [filtroDistrito, setFiltroDistrito] = useState("todos");
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    titulo: "",
+    descripcion: "",
+    categoria: "Manual",
+    file: null,
+    visible: true
+  });
 
   useEffect(() => {
-    fetch('/api/admin/registros')
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los registros')
-        return data
-      })
-      .then((data) => setRegistros(data.data || data.registros || []))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
+    init();
+  }, []);
+
+  async function init() {
+    setLoading(true);
+    setError("");
+    try {
+      const me = await fetch("/api/me");
+      const meData = await me.json();
+      if (!me.ok) throw new Error("Inicia sesión para entrar al panel.");
+      setSession(meData);
+      await Promise.all([loadRegistros(), loadBiblioteca()]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadRegistros() {
+    const res = await fetch("/api/admin/registros");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "No se pudieron cargar los registros.");
+    setRegistros(data.data || []);
+  }
+
+  async function loadBiblioteca() {
+    const res = await fetch("/api/admin/biblioteca");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "No se pudo cargar la biblioteca.");
+    setBiblioteca(data.data || []);
+  }
+
+  async function publicarDocumento(event) {
+    event.preventDefault();
+    if (!form.titulo || !form.file) {
+      setError("Ingresa un título y selecciona un PDF.");
+      return;
+    }
+
+    setUploading(true);
+    setError("");
+    try {
+      const fileBase64 = await fileToBase64(form.file);
+      const res = await fetch("/api/admin/biblioteca", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo: form.titulo,
+          descripcion: form.descripcion,
+          categoria: form.categoria,
+          visible: form.visible,
+          fileName: form.file.name,
+          fileBase64
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo publicar el documento.");
+      setForm({ titulo: "", descripcion: "", categoria: "Manual", file: null, visible: true });
+      await loadBiblioteca();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function toggleVisible(doc) {
+    setError("");
+    const res = await fetch("/api/admin/biblioteca", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: doc.id, visible: !doc.visible })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error || "No se pudo actualizar el documento.");
+      return;
+    }
+    await loadBiblioteca();
+  }
+
+  async function logout() {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/";
+  }
+
+  const registrosFiltrados = useMemo(() => {
+    if (filtroDistrito === "todos") return registros;
+    return registros.filter((registro) => registro.distrito === filtroDistrito);
+  }, [registros, filtroDistrito]);
+
+  const stats = useMemo(() => {
+    const conDocs = registros.filter((r) => r.cedula_file && r.foto_file).length;
+    return {
+      total: registros.length,
+      conDocs,
+      biblioteca: biblioteca.length,
+      pendientes: registros.length - conDocs
+    };
+  }, [registros, biblioteca]);
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: 32 }}>
-      <h1>Registros CELIDER 17</h1>
-      {loading ? <p>Cargando...</p> : null}
-      {error ? <p>{error}</p> : null}
-      {!loading && !error ? (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Nombre', 'Apellido', 'Distrito', 'Rol', 'Email', 'Telefono', 'Centro'].map((header) => (
-                  <th key={header} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #234' }}>
-                    {header}
-                  </th>
+    <>
+      <Head>
+        <title>Panel Admin CELIDER 17</title>
+      </Head>
+      <main className="admin-shell">
+        <aside className="admin-sidebar">
+          <div>
+            <div className="admin-brand">CELIDER <span>17</span></div>
+            <p className="admin-muted">Panel de administración</p>
+          </div>
+          <nav className="admin-nav">
+            <button className={tab === "registros" ? "active" : ""} onClick={() => setTab("registros")}>Registros</button>
+            <button className={tab === "biblioteca" ? "active" : ""} onClick={() => setTab("biblioteca")}>Biblioteca</button>
+          </nav>
+          <div className="admin-sidebar-foot">
+            <p>{session?.email || "Sesión"}</p>
+            <button className="btn btn-ghost btn-full" onClick={logout}>Salir</button>
+          </div>
+        </aside>
+
+        <section className="admin-main">
+          <header className="admin-topbar">
+            <div>
+              <div className="section-tag">Administrador</div>
+              <h1>{tab === "registros" ? "Registros y documentos" : "Biblioteca pública"}</h1>
+            </div>
+            <a className="btn btn-outline" href="/">Ver home</a>
+          </header>
+
+          {error ? <div className="alert alert-error">{error}</div> : null}
+          {loading ? (
+            <div className="admin-empty"><span className="spinner" /> Cargando panel...</div>
+          ) : tab === "registros" ? (
+            <>
+              <div className="admin-stats">
+                <Stat label="Registros" value={stats.total} />
+                <Stat label="Con PDFs" value={stats.conDocs} />
+                <Stat label="Pendientes" value={stats.pendientes} />
+                <Stat label="Biblioteca" value={stats.biblioteca} />
+              </div>
+
+              <div className="admin-toolbar">
+                <div className="admin-filters">
+                  {DISTRITOS.map((d) => (
+                    <button key={d} className={`btn btn-sm ${filtroDistrito === d ? "btn-primary" : "btn-ghost"}`} onClick={() => setFiltroDistrito(d)}>
+                      {d === "todos" ? "Todos" : d}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn btn-outline" onClick={loadRegistros}>Actualizar</button>
+              </div>
+
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      {["Participante", "Distrito", "Rol", "Contacto", "Centro", "Documentos", "Condición"].map((head) => (
+                        <th key={head}>{head}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registrosFiltrados.map((registro) => (
+                      <tr key={registro.id}>
+                        <td>
+                          <strong>{registro.nombre} {registro.apellido}</strong>
+                          <span>{registro.fecha}</span>
+                        </td>
+                        <td><span className="badge badge-blue">{registro.distrito}</span></td>
+                        <td><span className="badge badge-cyan">{registro.rol}</span></td>
+                        <td>
+                          <span>{registro.email}</span>
+                          <span>{registro.telefono}</span>
+                        </td>
+                        <td>{registro.centro}</td>
+                        <td>
+                          <div className="admin-doc-actions">
+                            {registro.cedula_url ? <a className="btn btn-sm btn-outline" href={registro.cedula_url} target="_blank" rel="noreferrer">Cédula</a> : <span className="admin-muted">Sin cédula</span>}
+                            {registro.foto_url ? <a className="btn btn-sm btn-outline" href={registro.foto_url} target="_blank" rel="noreferrer">Foto 2x2</a> : <span className="admin-muted">Sin foto</span>}
+                          </div>
+                        </td>
+                        <td>{registro.condicion === "si" ? registro.condicion_detalle || "Si" : "No"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!registrosFiltrados.length ? <div className="admin-empty">No hay registros para este filtro.</div> : null}
+              </div>
+            </>
+          ) : (
+            <div className="admin-grid">
+              <form className="admin-form glass" onSubmit={publicarDocumento}>
+                <h2>Publicar PDF</h2>
+                <label className="form-label">Título</label>
+                <input className="form-input" value={form.titulo} onChange={(e) => setForm((s) => ({ ...s, titulo: e.target.value }))} />
+                <label className="form-label">Categoría</label>
+                <input className="form-input" value={form.categoria} onChange={(e) => setForm((s) => ({ ...s, categoria: e.target.value }))} />
+                <label className="form-label">Descripción</label>
+                <textarea className="form-textarea" value={form.descripcion} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} />
+                <label className="form-label">Archivo PDF</label>
+                <input className="form-input" type="file" accept="application/pdf,.pdf" onChange={(e) => setForm((s) => ({ ...s, file: e.target.files?.[0] || null }))} />
+                <label className="admin-check">
+                  <input type="checkbox" checked={form.visible} onChange={(e) => setForm((s) => ({ ...s, visible: e.target.checked }))} />
+                  Visible en el home
+                </label>
+                <button className="btn btn-primary btn-full" disabled={uploading}>{uploading ? <span className="spinner" /> : "Publicar"}</button>
+              </form>
+
+              <div className="admin-library-list">
+                {biblioteca.map((doc) => (
+                  <article className="glass admin-doc-card" key={doc.id}>
+                    <div>
+                      <span className="badge badge-cyan">{doc.categoria || "PDF"}</span>
+                      <h3>{doc.titulo}</h3>
+                      <p>{doc.descripcion || doc.file_name}</p>
+                    </div>
+                    <div className="admin-doc-actions">
+                      {doc.url ? <a className="btn btn-sm btn-outline" href={doc.url} target="_blank" rel="noreferrer">Ver PDF</a> : null}
+                      <button className={`btn btn-sm ${doc.visible ? "btn-success" : "btn-ghost"}`} onClick={() => toggleVisible(doc)}>
+                        {doc.visible ? "Visible" : "Oculto"}
+                      </button>
+                    </div>
+                  </article>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {registros.map((registro) => (
-                <tr key={registro.id}>
-                  <td style={{ padding: 10 }}>{registro.nombre}</td>
-                  <td style={{ padding: 10 }}>{registro.apellido}</td>
-                  <td style={{ padding: 10 }}>{registro.distrito}</td>
-                  <td style={{ padding: 10 }}>{registro.rol}</td>
-                  <td style={{ padding: 10 }}>{registro.email}</td>
-                  <td style={{ padding: 10 }}>{registro.telefono}</td>
-                  <td style={{ padding: 10 }}>{registro.centro}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-    </main>
-  )
+                {!biblioteca.length ? <div className="admin-empty">Todavía no hay documentos publicados.</div> : null}
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+    </>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="glass admin-stat">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
 }
