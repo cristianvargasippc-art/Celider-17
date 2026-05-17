@@ -17,6 +17,15 @@ function fileToBase64(file) {
   })
 }
 
+// ── CÉDULA FORMATTER ──
+// Formats as 000-0000000-0 (max 11 digits → 13 chars with dashes)
+function formatCedula(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 10) return `${digits.slice(0,3)}-${digits.slice(3)}`
+  return `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10)}`
+}
+
 export default function Home() {
   const [sesion, setSesion]           = useState(null)
   const [loginOpen, setLoginOpen]     = useState(false)
@@ -36,9 +45,8 @@ export default function Home() {
     distrito:'', rol:'', nombre:'', apellido:'', edad:'',
     telefono:'', email:'', centro:'', condicion:'',
     condicion_detalle:'', calificacion:0,
-    cedula_file:'', foto_file:''
+    cedula:''   // ← plain text cedula field (replaces cedula_file / foto_file)
   })
-  const [regFiles, setRegFiles]       = useState({ cedula:null, foto:null })
   const [regAlert, setRegAlert]       = useState({ type:'', msg:'' })
   const [regLoading, setRegLoading]   = useState(false)
 
@@ -46,7 +54,6 @@ export default function Home() {
   const [consultaRes, setConsultaRes] = useState(null)
 
   const [biblioFiles, setBiblioFiles] = useState([])
-  const [canvasRef]                   = useState(useRef(null))
 
   // ── INIT ──
   useEffect(() => {
@@ -86,13 +93,11 @@ export default function Home() {
         if (p.x > canvas.width) p.x = 0
         if (p.y < 0) p.y = canvas.height
         if (p.y > canvas.height) p.y = 0
-
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(148,163,184,${p.opacity * 0.35})`
         ctx.fill()
       })
-
       particles.forEach((a, i) => {
         particles.slice(i + 1).forEach(b => {
           const dx = a.x - b.x, dy = a.y - b.y
@@ -129,7 +134,6 @@ export default function Home() {
       })
       const data = await res.json()
       if (!res.ok) { setLoginErr(data.error); return }
-
       sessionStorage.setItem('c17_sesion', JSON.stringify(data))
       setSesion(data)
       setLoginOpen(false)
@@ -178,51 +182,47 @@ export default function Home() {
   // ── REGISTRO ──
   function setReg(key, val) { setRegState(s => ({ ...s, [key]: val })) }
 
-  function setPdfFile(key, file) {
-    if (!file) {
-      setRegFiles(s => ({ ...s, [key]: null }))
-      setReg(key === 'cedula' ? 'cedula_file' : 'foto_file', '')
-      return
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      setRegAlert({ type:'error', msg:'El PDF no puede pesar más de 25 MB.' })
-      return
-    }
-    setRegAlert({ type:'', msg:'' })
-    setRegFiles(s => ({ ...s, [key]: file }))
-    setReg(key === 'cedula' ? 'cedula_file' : 'foto_file', file.name)
-  }
-
-  async function uploadRegistroPdf(type, file, email) {
-    const fileBase64 = await fileToBase64(file)
-    const res = await fetch('/api/upload-doc', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, email, fileName: file.name, fileBase64 })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'No se pudo subir el PDF.')
-    return data.path
+  // ── CEDULA HANDLER ──
+  function handleCedulaChange(e) {
+    const formatted = formatCedula(e.target.value)
+    setReg('cedula', formatted)
   }
 
   async function enviarRegistro() {
     const r = regState
+
+    // Required field validation
     if (!r.distrito || !r.rol || !r.nombre || !r.apellido || !r.edad ||
         !r.telefono || !r.email || !r.centro || !r.condicion) {
       setRegAlert({ type:'error', msg:'Completa todos los campos obligatorios.' }); return
     }
-    if (!regFiles.cedula) { setRegAlert({ type:'error', msg:'Adjunta tu cédula o acta en PDF.' }); return }
-    if (!regFiles.foto)   { setRegAlert({ type:'error', msg:'Adjunta tu fotografía 2x2 en PDF.' }); return }
+
+    // Cedula validation: must have 11 digits (formatted: 000-0000000-0 = 13 chars)
+    const cedulaDigits = r.cedula.replace(/\D/g, '')
+    if (cedulaDigits.length !== 11) {
+      setRegAlert({ type:'error', msg:'La cédula debe tener 11 dígitos (ej: 402-0000000-0).' }); return
+    }
+
     if (r.condicion === 'si' && !r.condicion_detalle) {
       setRegAlert({ type:'error', msg:'Describe la condición médica.' }); return
     }
 
     setRegLoading(true); setRegAlert({ type:'', msg:'' })
     try {
-      setRegAlert({ type:'success', msg:'Subiendo documentos PDF...' })
-      const cedulaPath = await uploadRegistroPdf('cedula', regFiles.cedula, r.email)
-      const fotoPath = await uploadRegistroPdf('foto', regFiles.foto, r.email)
-      const payload = { ...r, cedula_file: cedulaPath, foto_file: fotoPath }
+      const payload = {
+        distrito:           r.distrito,
+        rol:                r.rol,
+        nombre:             r.nombre,
+        apellido:           r.apellido,
+        edad:               r.edad,
+        telefono:           r.telefono,
+        email:              r.email,
+        centro:             r.centro,
+        condicion:          r.condicion,
+        condicion_detalle:  r.condicion_detalle,
+        calificacion:       r.calificacion,
+        cedula:             r.cedula,
+      }
 
       const res = await fetch('/api/registro', {
         method: 'POST',
@@ -231,11 +231,18 @@ export default function Home() {
       })
       const data = await res.json()
       if (!res.ok) { setRegAlert({ type:'error', msg: data.error }); return }
+
       setRegAlert({ type:'success', msg:'Registro exitoso. Tu participación en CELIDER 17 ha sido confirmada.' })
-      setRegState({ distrito:'',rol:'',nombre:'',apellido:'',edad:'',telefono:'',email:'',centro:'',condicion:'',condicion_detalle:'',calificacion:0,cedula_file:'',foto_file:'' })
-      setRegFiles({ cedula:null, foto:null })
-    } catch (error) { setRegAlert({ type:'error', msg:error.message || 'Error de conexión. Intenta nuevamente.' }) }
-    finally { setRegLoading(false) }
+      setRegState({
+        distrito:'', rol:'', nombre:'', apellido:'', edad:'',
+        telefono:'', email:'', centro:'', condicion:'',
+        condicion_detalle:'', calificacion:0, cedula:''
+      })
+    } catch (error) {
+      setRegAlert({ type:'error', msg: error.message || 'Error de conexión. Intenta nuevamente.' })
+    } finally {
+      setRegLoading(false)
+    }
   }
 
   // ── CONSULTA ──
@@ -248,11 +255,11 @@ export default function Home() {
     } catch { setConsultaRes([]) }
   }
 
-  // ── EXPORT XLSX ──
+  // ── EXPORT CSV ──
   async function exportarXLSX() {
     if (!registros.length) { alert('No hay registros para exportar.'); return }
-    const encabezados = ['ID','Fecha','Distrito','Rol','Nombre','Apellido','Edad','Teléfono','Correo','Centro','Condición','Detalle','Calificación']
-    const filas = registros.map(r => [r.id,r.fecha,r.distrito,r.rol,r.nombre,r.apellido,r.edad,r.telefono,r.email,r.centro,r.condicion,r.condicion_detalle||'',r.calificacion])
+    const encabezados = ['ID','Fecha','Distrito','Rol','Nombre','Apellido','Edad','Teléfono','Correo','Centro','Cédula','Condición','Detalle','Calificación']
+    const filas = registros.map(r => [r.id,r.fecha,r.distrito,r.rol,r.nombre,r.apellido,r.edad,r.telefono,r.email,r.centro,r.cedula||'',r.condicion,r.condicion_detalle||'',r.calificacion])
     const escapeCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
     const csv = [encabezados, ...filas].map(row => row.map(escapeCell).join(',')).join('\r\n')
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
@@ -270,15 +277,10 @@ export default function Home() {
   const ROLES = ['delegado','tecnico','docente','directiva']
   const CATEGORIA_LABEL = { regional:'Regional', capacitacion:'Capacitación', modelo:'Modelo ONU', torneo:'Torneo', gala:'Gala' }
   const CATEGORIA_CLASS = { regional:'badge-success', capacitacion:'badge-cyan', modelo:'badge-blue', torneo:'badge-warning', gala:'badge-cyan' }
-  const ROL_CLASS = { delegado:'badge-blue', tecnico:'badge-success', docente:'badge-warning', directiva:'badge-cyan' }
 
   const registrosFiltrados = filtroDistrito === 'todos' ? registros : registros.filter(r => r.distrito === filtroDistrito)
-
-  // stats for admin dashboard
-  const totalReg   = registros.length
-  const porDistrito = DISTRITOS.map(d => ({ d, n: registros.filter(r => r.distrito === d).length }))
-  const porRol     = ROLES.map(r => ({ r, n: registros.filter(x => x.rol === r).length }))
-  const avgCalif   = registros.length ? (registros.reduce((a,r)=>a+(r.calificacion||0),0)/registros.length).toFixed(1) : '—'
+  const totalReg    = registros.length
+  const avgCalif    = registros.length ? (registros.reduce((a,r)=>a+(r.calificacion||0),0)/registros.length).toFixed(1) : '—'
   const conCondicion = registros.filter(r => r.condicion === 'si').length
 
   return (
@@ -321,30 +323,23 @@ export default function Home() {
       <section id="inicio" style={styles.hero}>
         <canvas id="heroCanvas" style={styles.canvas} />
         <div style={styles.heroContent}>
-          <div style={styles.heroOrb1} />
-          <div style={styles.heroOrb2} />
-
           <div style={styles.heroBadge}>
             <span style={styles.heroBadgeDot} />
             Gestión 2026 – 2027 &nbsp;·&nbsp; Plancha #1
           </div>
-
           <h1 style={styles.heroTitle}>
             UN CELIDER<br />
             <span style={styles.heroTitleAccent}>QUE TRANSFORMA</span>
           </h1>
-
           <p style={styles.heroDesc}>
             Construyendo liderazgos, realidades y comunidades<br />
             en los 5 distritos educativos de la Regional 17.
           </p>
-
           <div style={styles.heroBtns}>
             <a href="#registro" className="btn btn-primary">Registrarse</a>
             <a href="#objetivos" className="btn btn-outline">Ver propuesta</a>
             <button className="btn btn-ghost" onClick={() => setLoginOpen(true)}>Ingresar al sistema</button>
           </div>
-
           <div style={styles.heroStats}>
             {[
               { n:'5',     l:'Distritos Educativos' },
@@ -359,8 +354,6 @@ export default function Home() {
             ))}
           </div>
         </div>
-
-        {/* 3D accent lines */}
         <div style={styles.heroLine1} />
         <div style={styles.heroLine2} />
       </section>
@@ -371,7 +364,6 @@ export default function Home() {
           <div className="section-tag">Objetivos estratégicos</div>
           <h2 className="section-title">Los <span>6 pilares</span> de la gestión</h2>
           <p className="section-desc">Acciones concretas orientadas a potenciar el voluntariado y transformar la Regional 17 durante 2026–2027.</p>
-
           <div style={styles.objetivosGrid}>
             {[
               { n:'01', t:'Ampliar la participación distrital', d:'Articulación con todos los distritos para aumentar la presencia activa de estudiantes y voluntarios en actividades regionales y nacionales.' },
@@ -398,7 +390,6 @@ export default function Home() {
           <div className="section-tag">Integrantes de la Plancha #1</div>
           <h2 className="section-title">Quiénes nos <span>representan</span></h2>
           <p className="section-desc">El equipo comprometido con transformar la Regional 17 durante 2026–2027.</p>
-
           <div style={styles.planchaGrid}>
             {[
               { nombre:'Mairenis Travieso',    cargo:'Presidenta',              trayectoria:'Voluntaria Nacional desde 2022 · MINUME XIV', img:'2' },
@@ -406,7 +397,7 @@ export default function Home() {
               { nombre:'Elisandra Tolentino',   cargo:'Sec. de Comunicaciones',  trayectoria:'Voluntaria Regional desde 2024 · MINUME XV',  img:'4' },
               { nombre:'Albert De Jesus',       cargo:'Sec. de Capacitaciones',  trayectoria:'Regional desde 2024 · MINUME XVI',            img:'5' },
               { nombre:'Carlos Alfredo Mejia',  cargo:'Sec. de Proyectos',       trayectoria:'Voluntario Nacional desde 2022 · MINUME XIII', img:'6' },
-            ].map((m, i) => (
+            ].map((m) => (
               <div key={m.nombre} className="glass" style={styles.miembroCard}>
                 <div style={styles.miembroImgWrap}>
                   <div style={styles.miembroImgPh}>
@@ -432,7 +423,6 @@ export default function Home() {
           <div className="section-tag">Agenda tentativa 2026–2027</div>
           <h2 className="section-title">Calendario de <span>actividades</span></h2>
           <p className="section-desc">Eventos, capacitaciones y modelos planificados para la gestión.</p>
-
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {(agenda.length ? agenda : [
               { dia:'15', mes:'Ago 2026', titulo:'Inicio oficial de gestión 2026–2027',     descripcion:'Acto inaugural y presentación de la Plancha #1', categoria:'regional' },
@@ -467,19 +457,6 @@ export default function Home() {
           <h2 className="section-title">Biblioteca <span>MUN</span></h2>
           <p className="section-desc">Repositorio digital de manuales, guías y materiales de capacitación para todos los comités y distritos.</p>
 
-          <div className="file-upload-area" style={{ display:'none', maxWidth:540, marginBottom:32 }}
-            onClick={() => document.getElementById('biblioInput').click()}>
-            <div style={{ fontSize:32, color:'var(--blue-neon)' }}>+</div>
-            <p>Subir documento al repositorio — Solo administradores — PDF únicamente</p>
-            <input type="file" id="biblioInput" style={{ display:'none' }}
-              onChange={e => {
-                const f = e.target.files[0]
-                if (!f) return
-                setBiblioFiles(prev => [...prev, { nombre: f.name, size: (f.size/1024).toFixed(0)+'KB' }])
-                e.target.value = ''
-              }} />
-          </div>
-
           {biblioFiles.length > 0 && (
             <div style={styles.biblioGrid}>
               {biblioFiles.map((d, i) => (
@@ -497,12 +474,12 @@ export default function Home() {
           </h3>
           <div style={styles.comitesGrid}>
             {[
-              { nombre:'Asamblea General',   tipo:'Manual', desc:'Reglas de procedimiento, resoluciones y guía de delegados para la AG.' },
+              { nombre:'Asamblea General',    tipo:'Manual', desc:'Reglas de procedimiento, resoluciones y guía de delegados para la AG.' },
               { nombre:'Consejo de Seguridad', tipo:'Manual', desc:'Procedimientos del CS, veto, resoluciones vinculantes y guía de delegado.' },
-              { nombre:'Comité Jurídico',    tipo:'Manual', desc:'Marco legal de la ONU, resoluciones y guía de redacción de resoluciones.' },
-              { nombre:'ECOSOC',             tipo:'Manual', desc:'Desarrollo sostenible, agenda social y procedimientos del ECOSOC.' },
-              { nombre:'Sec. Capacitaciones', tipo:'Guía',  desc:'Materiales didácticos, dinámicas y guía para facilitadores de talleres.' },
-              { nombre:'Sec. Comunicaciones', tipo:'Guía',  desc:'Manual de identidad institucional, redes sociales y comunicado oficial.' },
+              { nombre:'Comité Jurídico',     tipo:'Manual', desc:'Marco legal de la ONU, resoluciones y guía de redacción de resoluciones.' },
+              { nombre:'ECOSOC',              tipo:'Manual', desc:'Desarrollo sostenible, agenda social y procedimientos del ECOSOC.' },
+              { nombre:'Sec. Capacitaciones', tipo:'Guía',   desc:'Materiales didácticos, dinámicas y guía para facilitadores de talleres.' },
+              { nombre:'Sec. Comunicaciones', tipo:'Guía',   desc:'Manual de identidad institucional, redes sociales y comunicado oficial.' },
             ].map(c => (
               <div key={c.nombre} className="glass" style={styles.comiteCard}>
                 <div style={styles.comiteCardHeader}>
@@ -522,7 +499,6 @@ export default function Home() {
           <div className="section-tag">Sistema de consulta</div>
           <h2 className="section-title">Consultar tu <span>designación</span></h2>
           <p className="section-desc">Ingresa tu correo o nombre completo para conocer tu rol y designación oficial dentro de la Regional 17.</p>
-
           <div className="glass" style={{ maxWidth:580, margin:'0 auto', padding:'32px' }}>
             <div className="form-group">
               <label className="form-label">Correo electrónico o nombre</label>
@@ -535,7 +511,6 @@ export default function Home() {
                 </button>
               </div>
             </div>
-
             {consultaRes !== null && (
               <div style={{ marginTop:20 }}>
                 {consultaRes.length === 0 ? (
@@ -548,9 +523,9 @@ export default function Home() {
                       DESIGNACIÓN ENCONTRADA
                     </div>
                     {[
-                      ['Nombre',         `${r.nombre} ${r.apellido}`],
-                      ['Distrito',       r.distrito],
-                      ['Rol / Categoría',r.rol],
+                      ['Nombre',          `${r.nombre} ${r.apellido}`],
+                      ['Distrito',        r.distrito],
+                      ['Rol / Categoría', r.rol],
                       ['Centro Educativo',r.centro],
                       ['Fecha de registro',r.fecha],
                     ].map(([k,v]) => (
@@ -645,7 +620,7 @@ export default function Home() {
                 <option value="si">Sí</option>
               </select>
               {regState.condicion === 'si' && (
-                <div className="condicion-si" style={{ display:'block' }}>
+                <div className="condicion-si" style={{ display:'block', marginTop:12 }}>
                   <label className="form-label">Tipo de medicamento o enfermedad *</label>
                   <textarea className="form-textarea" rows={3}
                     placeholder="Describe la condición, medicamentos o cuidados especiales..."
@@ -658,11 +633,22 @@ export default function Home() {
             </div>
 
             {/* Documentos */}
-            <SectionHeader title="Documentos Requeridos" />
+            <SectionHeader title="Documento de Identidad" />
             <div className="form-group">
-              <label className="form-label">Cédula o acta de nacimiento*</label>
-              <input type="Cedu" className="form-input" placeholder="Ej: 402-0991385-1" value={regState.Cédula} onChange={e => setReg('Cédula', e.target.value)} maxLength={11}/>
-            </div> 
+              <label className="form-label">Número de Cédula o Acta de Nacimiento *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="000-0000000-0"
+                value={regState.cedula}
+                onChange={handleCedulaChange}
+                maxLength={13}
+                inputMode="numeric"
+              />
+              <p className="form-hint" style={{ marginTop:6 }}>
+                Formato dominicano: 000-0000000-0 · máximo 11 dígitos
+              </p>
+            </div>
 
             {/* Calificación */}
             <SectionHeader title="Evaluación del proceso" />
@@ -670,13 +656,22 @@ export default function Home() {
               <label className="form-label">¿Cómo calificarías el proceso de registro?</label>
               <div className="stars-wrap">
                 {[1,2,3,4,5].map(n => (
-                  <button key={n} type="button"
+                  <button
+                    key={n}
+                    type="button"
                     className={`star-btn${regState.calificacion >= n ? ' active' : ''}`}
-                    onClick={() => setReg('calificacion', n)}>
+                    onClick={() => setReg('calificacion', n)}
+                    aria-label={`${n} estrella${n > 1 ? 's' : ''}`}
+                  >
                     {regState.calificacion >= n ? '★' : '☆'}
                   </button>
                 ))}
               </div>
+              {regState.calificacion > 0 && (
+                <p className="form-hint" style={{ marginTop:6 }}>
+                  Seleccionaste {regState.calificacion} estrella{regState.calificacion > 1 ? 's' : ''}
+                </p>
+              )}
             </div>
 
             <div className="security-note" style={{ marginBottom:20 }}>
@@ -706,7 +701,7 @@ export default function Home() {
         <div className="modal">
           <div className="modal-header">
             <h2>Ingresar a CELIDER 17</h2>
-            <button className="modal-close" onClick={() => setLoginOpen(false)}>x</button>
+            <button className="modal-close" onClick={() => setLoginOpen(false)}>✕</button>
           </div>
           <div className="modal-body">
             <div className="tabs">
@@ -731,7 +726,7 @@ export default function Home() {
                       onChange={e => setLoginPass(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleLogin()} autoComplete="current-password" />
                     <button className="eye-btn" type="button" onClick={() => setShowPass(p => !p)}>
-                      {showPass ? 'O' : 'O'}
+                      {showPass ? '🙈' : '👁'}
                     </button>
                   </div>
                 </div>
@@ -739,15 +734,13 @@ export default function Home() {
                   {loginLoading ? <span className="spinner" /> : 'Ingresar'}
                 </button>
                 <div className="security-note" style={{ marginTop:14 }}>
-                  Conexion segura · Rate limiting activo · Tus datos estan protegidos
+                  Conexión segura · Rate limiting activo · Tus datos están protegidos
                 </div>
               </>
             ) : (
-              <>
-                <p style={{ fontSize:'13px', color:'var(--silver)', marginBottom:16 }}>
-                  Contacta al administrador del sistema para restablecer tu acceso: admin@celider17.do
-                </p>
-              </>
+              <p style={{ fontSize:'13px', color:'var(--silver)', marginBottom:16 }}>
+                Contacta al administrador del sistema para restablecer tu acceso: admin@celider17.do
+              </p>
             )}
           </div>
         </div>
@@ -759,7 +752,11 @@ export default function Home() {
 // ── SUB COMPONENTS ──
 function SectionHeader({ title }) {
   return (
-    <div style={{ fontFamily:'Inter,sans-serif', fontSize:'13px', fontWeight:800, letterSpacing:'0.04em', textTransform:'uppercase', color:'var(--blue-neon)', borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:18, marginTop:28 }}>
+    <div style={{
+      fontFamily:'Inter,sans-serif', fontSize:'13px', fontWeight:800,
+      letterSpacing:'0.04em', textTransform:'uppercase', color:'var(--blue-neon)',
+      borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:18, marginTop:28
+    }}>
       {title}
     </div>
   )
@@ -768,7 +765,7 @@ function SectionHeader({ title }) {
 function KpiCard({ label, value, color }) {
   return (
     <div className="glass-bright" style={{ padding:'24px', textAlign:'center' }}>
-      <div style={{ fontFamily:'Inter,sans-serif', fontSize:'2.8rem', fontWeight:800, color, lineHeight:1, textShadow:'none' }}>
+      <div style={{ fontFamily:'Inter,sans-serif', fontSize:'2.8rem', fontWeight:800, color, lineHeight:1 }}>
         {value}
       </div>
       <div style={{ fontFamily:'Inter,sans-serif', fontSize:'11px', letterSpacing:'0.04em', textTransform:'uppercase', color:'var(--silver)', marginTop:8 }}>
@@ -782,7 +779,7 @@ function KpiCard({ label, value, color }) {
 const styles = {
   topbar: { position:'fixed', top:0, left:0, right:0, zIndex:200, background:'rgba(15,23,42,0.94)', backdropFilter:'blur(14px)', borderBottom:'1px solid rgba(148,163,184,0.18)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 2rem', height:64 },
   logo: { display:'flex', alignItems:'center', gap:12, textDecoration:'none' },
-  logoBadge: { width:38, height:38, background:'var(--blue)', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif', fontWeight:700, fontSize:15, color:'#fff', boxShadow:'none' },
+  logoBadge: { width:38, height:38, background:'var(--blue)', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif', fontWeight:700, fontSize:15, color:'#fff' },
   logoText: { fontFamily:'Inter, sans-serif', fontWeight:700, fontSize:17, color:'var(--white)', lineHeight:1.2 },
   logoSub: { fontSize:10, color:'var(--silver)', fontWeight:300, letterSpacing:'0.05em' },
   navLinks: { display:'flex', alignItems:'center', gap:6 },
@@ -791,17 +788,15 @@ const styles = {
   hero: { minHeight:'100vh', background:'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'100px 2rem 60px', position:'relative', overflow:'hidden' },
   canvas: { position:'absolute', inset:0, pointerEvents:'none', opacity:0.35 },
   heroContent: { position:'relative', zIndex:2, maxWidth:800 },
-  heroOrb1: { display:'none' },
-  heroOrb2: { display:'none' },
   heroBadge: { display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.18)', borderRadius:50, padding:'7px 18px', fontSize:12, fontFamily:'Inter, sans-serif', fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', color:'#bfdbfe', marginBottom:24 },
   heroBadgeDot: { width:6, height:6, background:'#60a5fa', borderRadius:'50%' },
-  heroTitle: { fontFamily:'Inter, sans-serif', fontSize:'clamp(2.8rem,7vw,5.6rem)', fontWeight:800, color:'var(--white)', letterSpacing:0, lineHeight:1.04, marginBottom:20, textShadow:'none' },
-  heroTitleAccent: { color:'#bfdbfe', textShadow:'none' },
+  heroTitle: { fontFamily:'Inter, sans-serif', fontSize:'clamp(2.8rem,7vw,5.6rem)', fontWeight:800, color:'var(--white)', letterSpacing:0, lineHeight:1.04, marginBottom:20 },
+  heroTitleAccent: { color:'#bfdbfe' },
   heroDesc: { fontSize:'1.05rem', color:'#dbeafe', fontWeight:400, marginBottom:40, lineHeight:1.7 },
   heroBtns: { display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap', marginBottom:60 },
   heroStats: { display:'flex', gap:48, justifyContent:'center', borderTop:'1px solid rgba(255,255,255,0.14)', paddingTop:32, flexWrap:'wrap' },
   stat: { textAlign:'center' },
-  statN: { fontFamily:'Inter, sans-serif', fontSize:'2.2rem', fontWeight:800, color:'#bfdbfe', textShadow:'none' },
+  statN: { fontFamily:'Inter, sans-serif', fontSize:'2.2rem', fontWeight:800, color:'#bfdbfe' },
   statL: { fontSize:'11px', color:'var(--silver)', textTransform:'uppercase', letterSpacing:'0.1em', marginTop:4 },
   heroLine1: { display:'none' },
   heroLine2: { display:'none' },
@@ -811,7 +806,7 @@ const styles = {
   objetivoNum: { fontFamily:'Inter, sans-serif', fontSize:'2.3rem', fontWeight:800, color:'var(--blue-dim)', marginBottom:10, lineHeight:1 },
   objetivoTitle: { fontFamily:'Inter, sans-serif', fontSize:'1.05rem', fontWeight:800, color:'#0f172a', marginBottom:10, letterSpacing:0 },
   objetivoDesc: { fontSize:'0.88rem', color:'#475569', lineHeight:1.7, fontWeight:400 },
-  objetivoBar: { position:'absolute', top:0, left:0, right:0, height:3, background:'var(--blue)', boxShadow:'none' },
+  objetivoBar: { position:'absolute', top:0, left:0, right:0, height:3, background:'var(--blue)' },
 
   planchaGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:20 },
   miembroCard: { overflow:'hidden', transition:'all .25s' },
@@ -844,15 +839,6 @@ const styles = {
   comiteNombre: { fontFamily:'Inter, sans-serif', fontSize:'0.95rem', fontWeight:800, color:'#f8fafc' },
   comiteDesc: { fontSize:'12px', color:'#cbd5e1', fontWeight:400, lineHeight:1.6 },
 
-  adminHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28, flexWrap:'wrap', gap:16 },
-  kpiGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:16, marginBottom:24 },
-
-  adminTable: { width:'100%', borderCollapse:'collapse', fontSize:'13px' },
-  th: { background:'rgba(15,23,42,0.9)', color:'#bfdbfe', padding:'12px 14px', textAlign:'left', fontFamily:'Inter, sans-serif', fontSize:'11px', fontWeight:800, letterSpacing:'0.04em', textTransform:'uppercase', whiteSpace:'nowrap', borderBottom:'1px solid var(--border)' },
-  td: { padding:'11px 14px', color:'var(--silver)', borderBottom:'1px solid rgba(0,180,255,0.06)', verticalAlign:'middle', fontSize:'13px' },
-  tr: { transition:'background .15s', cursor:'default' },
-
   footer: { background:'var(--ink-2)', borderTop:'1px solid var(--border)', padding:'48px 2rem', textAlign:'center' },
   footerLogo: { fontFamily:'Inter, sans-serif', fontWeight:800, fontSize:'1.8rem', color:'var(--white)', marginBottom:10 },
 }
-
